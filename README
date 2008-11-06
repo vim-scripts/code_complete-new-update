@@ -1,0 +1,98 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=2427
+
+see the origin script here:vimscript #1764
+and there is a screenshot: http://files.myopera.com/mbbill/files/code_complete.gif
+
+Install:          1.  Put code_complete.vim and my_snippets.template
+                       to plugin directory.
+                     2.  Use the command below to create tags file
+                       including signature field.
+                       ctags -R --c-kinds=+p --fields=+S .
+
+ Usage:
+                   hotkey:
+
+                       "<A-d>" (default value of g:CodeCompl_Hotkey)
+                       we DON'T use <tab>, because it comflict with
+                       superstab.vim, you will quickly find Alt-S
+                       will be a good choice.  Do all the jobs with
+                       this key, see example:
+                       press <A-d> after function name and (
+                           foo ( <A-d>
+                       becomes:
+                           foo ( `<first param>`,`<second param>` )
+                       press <A-D> after code template
+                           if <A-d>
+                       becomes:
+                           if( `<...>` )
+                           {
+                               `<...>`
+                           }
+
+
+                   variables:
+
+                       g:CodeCompl_Hotkey
+                           the key used to complete function
+                           parameters and key words. after you press
+                           ths key AFTER you input the complete-word,
+                           the word will be spreaded. you can see the
+                           paragraph above for detail features.
+
+                       g:CodeCompl_RegionStart g:CodeCompl_RegionEnd
+                           region start and stop you can change them
+                           as you like.  but you must be careful,
+                           because we use them to detemin marks in
+                           your template files(not complete file), so
+                           if you change it, maybe you must
+                           substitute all marks in your template
+                           files. after you change them, maybe you
+                           should update your template file, you can
+                           use this command:
+                           :UpdateTemplate<CR>
+
+                       g:CodeCompl_Template_Forechar
+                           you can use template file with
+                           template-forechar, you can create a file
+                           named 'complete-word.filetype',
+                           and drop it in
+                           g:CodeCompl_Template_Folder(default, it's
+                           'templates' in your runtimepath, e.g.
+                           D:\Vim\vimfiles\templates in windows, or
+                           /root/.vim/templates in linux/unix.
+                           after you create file, you can input
+                           forechar + complete-word to include the
+                           whole file. e.g. '#stdc' to include stdc.c
+                           if your current filetype is 'c'.
+
+                       g:CodeCompl_Template_Folder
+                           see paragraph above. the folder default is
+                           'templates'.
+
+                       g:CodeCompl_Complete_File
+                           file name of users defined snippets.  now
+                           it named 'my_snippets.template', use this
+                           postfix to prevent Vim load it
+                           automatically
+
+                       g:CodeCompl_ClearWhenUpdate
+                           see the Option section
+
+                       g:CodeCompl_SaveListInBuffer
+                            Save complete list and template file list only in buffer
+
+
+                   global helper functions:
+                       
+                       MakeRegion
+                           same as g:CodeCompl_RegionStart . 'your
+                           text' . g:CodeCompl_RegionEnd, but input a
+                           little easily, but there are other helper
+                           function and variables in your complete
+
+                           file(defaults is my_snippets.template in
+                           your plugin folder)
+
+                   default complete-words:
+                           see "my_snippets.template" file.
+
