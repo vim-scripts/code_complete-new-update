@@ -1,13 +1,13 @@
 #define _WIN32_WINNT 0x0501
 #include <Windows.h>
 
-char *strClassName = "My Class";
-
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg,
                          WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
     {
+    case `<Add New Message Handler Here!>`:
+        break;
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
@@ -20,23 +20,21 @@ int CALLBACK WinMain(HINSTANCE hInst, HINSTANCE hPreInst,
 {
     MSG msg;
     HWND hWnd;
-    WNDCLASS wc =
+    WNDCLASSEX wc =
     {
-        CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS,
+        sizeof(wc), CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS,
         WndProc, 0, 0, hInst,
         LoadIcon(NULL, IDI_APPLICATION), LoadCursor(NULL, IDC_ARROW),
-        (HBRUSH)GetStockObject(WHITE_BRUSH), NULL, strClassName
+        (HBRUSH)GetStockObject(WHITE_BRUSH), NULL, "My Class", NULL
     };
-    if (!RegisterClass(&wc))
-        return 1;
+
     hWnd = CreateWindowEx(0,
-                          strClassName, "My Window",
-                          WS_OVERLAPPEDWINDOW,
+                          MAKEINTRESOURCE(RegisterClassEx(&wc)),
+                          "My Window", WS_OVERLAPPEDWINDOW,
                           CW_USEDEFAULT, CW_USEDEFAULT, 320, 240,
                           NULL, NULL, hInst, NULL);
     if (!IsWindow(hWnd))
-        return 2;
-
+        return 1;
     ShowWindow(hWnd, nCmdShow);
     UpdateWindow(hWnd);
     while (GetMessage(&msg, NULL, 0, 0))

@@ -6,5 +6,3 @@ int main(int argc, char **argv)
     `<Input Code Here!>`
     return 0;
 }
-
-

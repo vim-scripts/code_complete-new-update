@@ -3,8 +3,8 @@
 " Brief:            the complete file of the code_complete.vim script
 " Original Author:  Mingbai <mbbill AT gmail DOT com> 
 " Maintainer:       StarWing <weasley_wx AT qq DOT com>
-" Last Change:      2008-11-07 18:22:31
-" Version:          2.9
+" Last Change:      2008-11-11 17:14:38
+" Version:          2.8.1
 " Example: {{{1
 "           some new file type, e.g. 'newft'
 "           first define a function named
@@ -42,8 +42,6 @@ if !exists('s:sr')
     let s:sr = function('MakeRegion')
 endif
 let s:dr = s:sr('...')
-
-let g:CodeCompl_complete_type_lists = ['COMMON', 'c', 'cpp', 'vim']
 
 " }}}
 " set common Complete {{{1
@@ -95,6 +93,7 @@ endfunction
 
 function! Set_complete_type_cpp(dict, fdict)
 	call Set_complete_type_c(a:dict)
+    let a:dict['usi'] = "using namespace ".s:dr
 
     " add C templates
     for fname in split(globpath(&rtp, g:CodeCompl_Template_Folder.'/*.c'))

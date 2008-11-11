@@ -4,8 +4,8 @@
 "                   much more.
 " Original Author:  Mingbai <mbbill AT gmail DOT com> 
 " Maintainer:       StarWing <weasley_wx AT qq DOT com>
-" Last Change:      2008-11-07 18:22:18
-" Version:          2.9
+" Last Change:      2008-11-11 17:14:03
+" Version:          2.8.1
 " Details: {{{1
 " Install:          1.  Put code_complete.vim and my_snippets.template
 "                       to plugin directory.
@@ -49,7 +49,7 @@
 "                           my_snippets.template defaultly), will
 "                           called by code_complete when you edit new
 "                           buffer, or change your filetype if you set
-"                           g:CodeCompl_UpdateAlways.
+"                           g:CodeCompl_SaveListInBuffer
 "
 "                       EditSnippets
 "                           Edit your complete file.
@@ -105,7 +105,6 @@
 "                           postfix to prevent Vim load it
 "                           automatically
 "
-"                       g:CodeCompl_UpdateAlways
 "                       g:CodeCompl_ClearWhenUpdate
 "                           see the Option section
 "
@@ -146,8 +145,11 @@ command EditSnippets call <SID>SnippetFileEdit()
 command -bang SaveAsTemplate call <SID>TemplateFileSave('<bang>')
 
 " Menus:
-menu <silent> &Tools.Code\ Complete\ Start    :StartCodeComplele<CR>
-menu <silent> &Tools.Code\ Complete\ Stop     :StopCodeComplete<CR>
+menu <silent> &Tools.Code\ Complete.Start               :StartCodeComplele<CR>
+menu <silent> &Tools.Code\ Complete.Stop                :StopCodeComplete<CR>
+menu <silent> &Tools.Code\ Complete.Update\ Templates   :UpdateTemplate<CR>
+menu <silent> &Tools.Code\ Complete.Edit\ Snippet\ File :EditSnippets<CR>
+menu <silent> &Tools.Code\ Complete.Save\ As\ Template  :SaveAsTemplate<CR>
 " }}}
 " Options, define them as you like in vimrc {{{1
 " (or remain it in default value.)
@@ -236,20 +238,9 @@ endif
 
 
 " }}}
-" Modify when shall code_complete update dicts {{{2
-" decide whether code_complete update everything when edit a
-" new buffer and change the filetype.
-"       0 means use old value
-"       1 means update the template filelist and complete dict
-"           when edit a new file or change filetype
-if !exists('g:CodeCompl_UpdateAlways')
-    let g:CodeCompl_UpdateAlways = 1
-endif
-
-" }}}
 " Modify when update dict, shall code_complete delete {{{2
 " current dicts decide whether code_complete should delete
-" old dict when update, e.g. open g:CodeCompl_UpdateAlways
+" old dict when update, e.g. open g:CodeCompl_SaveListInBuffer
 " and change your file type.
 "       0 means don't clean current dict
 "       1 means clear all dict item, and reload immediately
@@ -297,16 +288,6 @@ endif
 " Start the code_complete, do some initialization work {{{2
 "
 function! <SID>CodeCompleteStart()
-    " define autocommands
-    augroup code_complete
-        au!
-
-        autocmd BufReadPost,BufNewFile * StartCodeComplele
-        if g:CodeCompl_UpdateAlways
-            autocmd FileType * UpdateTemplate
-        endif
-    augroup END
-
     " define the key maps use g:CodeCompl_Hotkey
     exec 'nnoremap <silent><buffer> '.g:CodeCompl_Hotkey.
                 \ " :exec 'silent! normal '.<SID>SwitchRegion()<cr>"
@@ -316,18 +297,21 @@ function! <SID>CodeCompleteStart()
     exec 'smap <silent><buffer> '.g:CodeCompl_Hotkey.
                 \ ' <esc>'.g:CodeCompl_Hotkey
 
-
     " -----------------------------------
     " Some Inner variables
 
     " control the action of function SwitchRegion()
     " -1 means don't jump to anywhere, and -2 means do nothing
     let s:jumppos = -1
-    
-    
+
     " update template and complete file, if needed
-    if g:CodeCompl_UpdateAlways
-        call <SID>TemplateUpdate()
+    if g:CodeCompl_SaveListInBuffer
+        call s:BufferTemplateUpdate()
+    else
+        let b:complete_FileList = get(s:complete_FileList, &ft,
+                    \ s:complete_FileList['COMMON'])
+        let b:complete_Snippets = get(s:complete_Snippets, &ft, 
+                    \ s:complete_Snippets['COMMON'])
     endif
 endfunction
 " }}}
@@ -336,7 +320,7 @@ endfunction
 function! <SID>CodeCompleteStop()
     " delete autocmds
     augroup code_complete
-    au!
+        au!
     augroup END
     " unmap all keys
     for ch in ['i', 's', 'n']
@@ -344,13 +328,104 @@ function! <SID>CodeCompleteStop()
     endfor
 
     " release some dictionary
-        unlet! b:template_FileList
-        unlet! b:template_Snippets
+    unlet! b:template_FileList
+    unlet! b:template_Snippets
 endfunction
 " }}}
 " Update template or complete file {{{2
 "
 function! <SID>TemplateUpdate()
+    call s:{g:CodeCompl_SaveListInBuffer ? 'Buffer' : 'Global'}TemplateUpdate()
+endfunction
+" }}}
+" Edit the Snippet file {{{2
+"
+function! <SID>SnippetFileEdit()
+    let fname = globpath(&rtp, g:CodeCompl_Complete_File)
+    let second_file = stridx(fname, "\<NL>")
+    if second_file != -1
+        let fname = fname[:second_file - 1]
+    endif
+    let fname = escape(fname, ' |')
+    if &mod || line('$') != 1 || getline(1) != ''
+        exec 'new ' . fname
+    else
+        exec 'edit ' . fname
+    endif
+endfunction
+" }}}
+" Save current file to template folder {{{2
+"
+function! <SID>TemplateFileSave(bang)
+    let tdir = globpath(&rtp, g:CodeCompl_Template_Folder)
+    let second_dir = stridx(tdir, "\<NL>")
+    if second_dir != -1
+        let tdir = tdir[:second_file - 1]
+    endif
+    if empty(&ft)
+        exec 'write'.a:bang.' '.tdir.'/'.exoand('%:t:r')
+    else
+        exec 'write'.a:bang.' '.tdir.'/'.expand('%:t:r').'.'.&ft
+    endif
+    let b:complete_FileList[expand('%:t:r')] = expand('%:p')
+endfunction
+" }}}
+" Update global templates and completes {{{2
+"
+function! s:GlobalTemplateUpdate()
+    " init dictionarys
+    if g:CodeCompl_ClearWhenUpdate || !exists('s:complete_FileList')
+        let s:complete_FileList = {}
+    endif
+    if g:CodeCompl_ClearWhenUpdate || !exists('s:complete_Snippets')
+        let s:complete_Snippets = {}
+    endif
+    if !has_key(s:complete_FileList, 'COMMON')
+        let s:complete_FileList['COMMON'] = {}
+    endif
+    if !has_key(s:complete_Snippets, 'COMMON')
+        let s:complete_Snippets['COMMON'] = {}
+    endif
+
+    " search for template file list
+    let flist = split(globpath(&rtp, g:CodeCompl_Template_Folder.'/*'),
+                \ "\<NL>")
+    for fname in flist
+        let ft = fnamemodify(fname, ':t:e')
+        let ft = empty(ft) ? 'COMMON' : ft
+        let key = fnamemodify(fname, ':t:r')
+        if !has_key(s:complete_FileList, ft)
+            let s:complete_FileList[ft] = {}
+        endif
+        let s:complete_FileList[ft][key] = fname
+    endfor
+
+    " call the template defined file
+    exec "runtime ".g:CodeCompl_Complete_File
+    redir => func_list
+    silent function /^Set_complete_type_.*$/
+    redir END
+
+    for func in split(func_list, "\<NL>")
+        let func_name = matchstr(func, 
+                    \ '^function \zsSet_complete_type_[^(]\+\ze')
+        let ft = matchstr(func_name, '^Set_complete_type_\zs.*\ze$')
+        if !has_key(s:complete_Snippets, ft)
+            let s:complete_Snippets[ft] = {}
+        endif
+        if !has_key(s:complete_FileList, ft)
+            let s:complete_FileList[ft] = {}
+        endif
+
+        call call(function(func_name), [s:complete_Snippets[ft],
+                    \ s:complete_FileList[ft]])
+        exec 'delfunction '.func_name
+    endfor        
+endfunction
+" }}}
+" Update buffer templates and completes {{{2
+" 
+function! s:BufferTemplateUpdate()
     " init dictionarys
     if g:CodeCompl_ClearWhenUpdate || !exists('b:complete_FileList')
         let b:complete_FileList = {}
@@ -386,42 +461,13 @@ function! <SID>TemplateUpdate()
     endfor
 endfunction
 " }}}
-" Edit the Snippet file {{{
-"
-function! <SID>SnippetFileEdit()
-    let fname = globpath(&rtp, g:CodeCompl_Complete_File)
-    let second_file = stridx(fname, "\<NL>")
-    if second_file != -1
-        let fname = fname[:second_file - 1]
-    endif
-    let fname = escape(fname, ' |')
-    if &mod || line('$') != 1 || getline(1) != ''
-        exec 'new ' . fname
-    else
-        exec 'edit ' . fname
-    endif
-endfunction
-" }}}
-" Save current file to template folder {{{
-"
-function! <SID>TemplateFileSave(bang)
-    let tdir = globpath(&rtp, g:CodeCompl_Template_Folder)
-    let second_dir = stridx(tdir, "\<NL>")
-    if second_dir != -1
-        let tdir = tdir[:second_file - 1]
-    endif
-    if empty(&ft)
-        exec 'write'.a:bang.' '.tdir.'/'.exoand('%:t:r')
-    else
-        exec 'write'.a:bang.' '.tdir.'/'.expand('%:t:r').'.'.&ft
-    endif
-    let b:complete_FileList[expand('%:t:r')] = expand('%:p')
-endfunction
-" }}}
 " Complete, use commplete dict {{{2
 " find the word in complete dictionary
 function! s:SnippetsComplete(cword)
     let value = get(b:complete_Snippets, a:cword, '')
+    if empty(value) && !g:CodeCompl_SaveListInBuffer 
+        let value = get(s:complete_Snippets['COMMON'], a:cword, '')
+    endif
     if !empty(value)
         let s:jumppos = line('.')
     endif
@@ -429,21 +475,19 @@ function! s:SnippetsComplete(cword)
 endfunction
 " }}}
 " Complete template file {{{2
-" this function can have two argument, the complete-word, and the len
-" of word.  e.g. if you input '#   stdc   ', the word len will be
-" 12(but it will not send, because you input a template-forechar'#').
-" and if you input '      stdc  ', the word len will be 6, space
-" before stdc will be ignore.
-" this function will delete current line(if you input a forechar), or
-" delete the complete-word(if don't input a forechar), if can find the
-" template, function return 0, and if it failed, it return 1.
+" function return 0 if it have found a template, and if it failed, it
+" return 1.
 function! s:TemplateComplete(cword)
     let fname = get(b:complete_FileList, a:cword, '')
+
+    if empty(fname) && !g:CodeCompl_SaveListInBuffer
+        let fname = get(s:complete_FileList['COMMON'], a:cword, '')
+    endif
 
     if empty(fname)
         return 1
     endif
-    
+
     let s:jumppos = -1
     let line = line('.')
     let tlist = readfile(fname)
@@ -492,7 +536,7 @@ function! s:FunctionComplete(fun)
         if !has_key(item, 'kind') || (item.kind != 'p' && item.kind != 'f')
                     \ || !has_key(item, 'name') || item.name != a:fun
                     \ || !has_key(item, 'signature')
-                    \ || match(item.signature, '(\s*\%(void\)\=\s*)') >= 0
+                    \ || match(item.signature, '^(\s*\%(void\)\=\s*)$') >= 0
             continue
         endif
         let sig = s:ProcessSignature(item.signature)
@@ -551,15 +595,15 @@ function! <SID>SwitchRegion()
     endif
 
     call search(g:CodeCompl_RegionStart, 'c')
-    exec "normal \<c-\>\<c-n>v"
+    exec "normal! \<c-\>\<c-n>v"
     call search(g:CodeCompl_RegionEnd,'e',line('.'))
     if &selection == "exclusive"
-        exec "normal " . "\<right>"
+        normal! l
     endif
     return "\<c-\>\<c-n>gvo\<c-g>"
 endfunction
 " }}}
-" Complete function, called each sub-function {{{
+" Complete function, called each sub-function {{{2
 "
 function! <SID>CodeComplete()
     " fore-char
@@ -568,7 +612,7 @@ function! <SID>CodeComplete()
     let c_line = getline('.')[:col('.') - 2]
     " get the template name of function name
     let plist = matchlist(c_line, '\('.fc.'\s*\)\=\(\w*\)\s*\((\)\=\s*$')
-    
+
     " if it's empty or is a template name
     if empty(plist) || empty(plist[2]) 
                 \ || (!empty(plist[1]) && !s:TemplateComplete(plist[2]))
@@ -602,10 +646,20 @@ endfunction
 " }}}
 " ------------------------------------------------------------------------
 " Some Initialization works {{{
-"
+
+" define autocommands
+augroup code_complete
+    au!
+
+    autocmd BufReadPost * StartCodeComplele
+    autocmd BufNewFile * StartCodeComplele
+    autocmd FileType * StartCodeComplele
+augroup END
+
+
 " Load template settings
-if !g:CodeCompl_UpdateAlways
-    UpdateTemplate
+if !g:CodeCompl_SaveListInBuffer
+    call s:GlobalTemplateUpdate()
 endif
 
 " ensure the start function must be called when start vim
