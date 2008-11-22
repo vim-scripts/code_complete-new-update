@@ -128,10 +128,13 @@
 " ========================================================================
 " MUST after Vim 7.0 {{{1
 " and check whether code_complete has been loaded
-if v:version < 700 || exists('g:loaded_code_complete')
+if &cp || v:version < 700 || exists('g:loaded_code_complete')
     finish
 endif
-let g:loaded_code_complete = 1
+let g:loaded_code_complete = "v2.8.1"
+let s:keepcpo = &cpo
+set cpo&vim
+
 " }}}
 " ------------------------------------------------------------------------
 " pre-defined Commands and Menu {{{1
@@ -203,6 +206,22 @@ function! GetFileName()
     let name = substitute(filename,'\.','_',"g")
     let name = "__".name."__"
     return name
+endfunction
+
+" don't highlight marks after completed
+function! SkipMarks()
+    let s:jumppos = -2
+    return ''
+endfunction
+
+" Input for something
+function! GetInput(string, var)
+    echohl Search
+    call inputsave()
+    exec 'let g:'.a:var.'=input(a:string)'
+    call inputrestore()
+    echohl None
+    return ''
 endfunction
 
 " this is a default region, you must update it manually
@@ -335,23 +354,21 @@ endfunction
 " Update template or complete file {{{2
 "
 function! <SID>TemplateUpdate()
-    call s:{g:CodeCompl_SaveListInBuffer ? 'Buffer' : 'Global'}TemplateUpdate()
+    if g:CodeCompl_SaveListInBuffer
+        call s:BufferTemplateUpdate()
+    else
+        call s:GlobalTemplateUpdate()
+    endif
 endfunction
 " }}}
 " Edit the Snippet file {{{2
 "
 function! <SID>SnippetFileEdit()
-    let fname = globpath(&rtp, g:CodeCompl_Complete_File)
-    let second_file = stridx(fname, "\<NL>")
-    if second_file != -1
-        let fname = fname[:second_file - 1]
-    endif
-    let fname = escape(fname, ' |')
-    if &mod || line('$') != 1 || getline(1) != ''
-        exec 'new ' . fname
-    else
-        exec 'edit ' . fname
-    endif
+    let flist = globpath(&rtp, g:CodeCompl_Complete_File)
+    for fname in split(flist, "\<NL>")
+        exec 'drop'escape(fname, ' |')
+        return
+    endfor
 endfunction
 " }}}
 " Save current file to template folder {{{2
@@ -362,12 +379,12 @@ function! <SID>TemplateFileSave(bang)
     if second_dir != -1
         let tdir = tdir[:second_file - 1]
     endif
-    if empty(&ft)
-        exec 'write'.a:bang.' '.tdir.'/'.exoand('%:t:r')
-    else
-        exec 'write'.a:bang.' '.tdir.'/'.expand('%:t:r').'.'.&ft
-    endif
+    let ft = empty(&ft) ? '' : '.'.&ft
+    exec 'write'.a:bang.' '.tdir.'/'.exoand('%:t:r').ft
     let b:complete_FileList[expand('%:t:r')] = expand('%:p')
+    if g:CodeCompl_SaveListInBuffer && empty(ft)
+        let s:complete_FileList['COMMON'][expand('%:t:r')] = expand('%:p')
+    endif
 endfunction
 " }}}
 " Update global templates and completes {{{2
@@ -388,8 +405,7 @@ function! s:GlobalTemplateUpdate()
     endif
 
     " search for template file list
-    let flist = split(globpath(&rtp, g:CodeCompl_Template_Folder.'/*'),
-                \ "\<NL>")
+    let flist = split(globpath(&rtp, g:CodeCompl_Template_Folder.'/*'), "\<NL>")
     for fname in flist
         let ft = fnamemodify(fname, ':t:e')
         let ft = empty(ft) ? 'COMMON' : ft
@@ -402,25 +418,34 @@ function! s:GlobalTemplateUpdate()
 
     " call the template defined file
     exec "runtime ".g:CodeCompl_Complete_File
-    redir => func_list
+    redir => output
     silent function /^Set_complete_type_.*$/
     redir END
 
-    for func in split(func_list, "\<NL>")
-        let func_name = matchstr(func, 
-                    \ '^function \zsSet_complete_type_[^(]\+\ze')
-        let ft = matchstr(func_name, '^Set_complete_type_\zs.*\ze$')
+    let func_list = split(output, "\<NL>")
+
+    for func in func_list
+        let func = matchstr(func, '^function \zsSet_complete_type_[^(]\+\ze')
+        let ft = matchstr(func, '^Set_complete_type_\zs.*\ze$')
         if !has_key(s:complete_Snippets, ft)
             let s:complete_Snippets[ft] = {}
         endif
         if !has_key(s:complete_FileList, ft)
             let s:complete_FileList[ft] = {}
         endif
+        
+        exec 'call '.func.'(s:complete_Snippets[ft], '.
+                    \ 's:complete_FileList[ft])'
+        exec 'delfunction '.func
+    endfor
 
-        call call(function(func_name), [s:complete_Snippets[ft],
-                    \ s:complete_FileList[ft]])
-        exec 'delfunction '.func_name
-    endfor        
+    if !empty(&ft) && has_key(s:complete_FileList, &ft)
+        let b:complete_FileList = s:complete_FileList[&ft]
+    endif
+
+    if !empty(&ft) && has_key(s:complete_Snippets, &ft)
+        let b:complete_Snippets = s:complete_Snippets[&ft]
+    endif
 endfunction
 " }}}
 " Update buffer templates and completes {{{2
@@ -664,6 +689,9 @@ endif
 
 " ensure the start function must be called when start vim
 StartCodeComplele
+
+let &cpo = s:keepcpo
+unlet! s:keepcpo
 
 " }}}
 " vim: ft=vim:ff=unix:fdm=marker:co=80:tw=70:sts=4:ts=4:sw=4:et:sta

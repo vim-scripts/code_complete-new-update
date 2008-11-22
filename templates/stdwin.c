@@ -45,4 +45,4 @@ int CALLBACK WinMain(HINSTANCE hInst, HINSTANCE hPreInst,
     return msg.wParam;
 }
 
-/* cc_flags = -mwindows -static */
+/* cflags: flag.=' -mwindows -static' : */
