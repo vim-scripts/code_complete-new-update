@@ -6,7 +6,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg,
 {
     switch (uMsg)
     {
-    case `<Add New Message Handler Here!>`:
+    case __(Add New Message Handler Here!)__:
         break;
     case WM_DESTROY:
         PostQuitMessage(0);

@@ -81,6 +81,12 @@
 "                           use this command:
 "                           :UpdateTemplate<CR>
 "
+"                       g:CodeCompl_Template_RegionStart
+"                       g:CodeCompl_Template_RegionEnd
+"                           region start and stop the template file.
+"                           you can change them to match the marks in
+"                           your template file.
+"
 "                       g:CodeCompl_Template_Forechar
 "                           you can use template file with
 "                           template-forechar, you can create a file
@@ -121,6 +127,24 @@
 "                           function and variables in your complete
 "                           file(defaults is my_snippets.template in
 "                           your plugin folder)
+"
+"                       GetFileName
+"                           get current file name as "__FOOBAR_H__",
+"                           used in header file.
+"
+"                       SkipMarks
+"                           skip the match to the marks in your
+"                           snippets. used in "printf" snippet.
+"
+"                       GetInput
+"                           let user input a string, you can use it
+"                           later in your snippets, see the details in
+"                           snippet "malloc" and "calloc".
+"
+"                       DefaultRegion
+"                           the default region, just like
+"                           g:CodeCompl_RegionStart."...".g:CodeCompl_RegionEnd
+"
 "
 "                   default complete-words:
 "                           see "my_snippets.template" file.
@@ -200,6 +224,18 @@ function! MakeRegion(text)
     return g:CodeCompl_RegionStart . a:text . g:CodeCompl_RegionEnd
 endfunction
 
+" Define the marks in template files, they will be substituted by
+" marks above.
+" template file region Start mark
+if !exists("g:CodeCompl_Template_RegionStart")
+    let g:CodeCompl_Template_RegionStart = '__('
+endif
+
+" template file region End mark
+if !exists("g:CodeCompl_Template_RegionEnd")
+    let g:CodeCompl_Template_RegionEnd = ')__'
+endif
+
 " [Get converted file name like __THIS_FILE__ ]
 function! GetFileName()
     let filename = toupper(expand('%:t'))
@@ -216,9 +252,13 @@ endfunction
 
 " Input for something
 function! GetInput(string, var)
+    if !exists('g:'.a:var)
+        exec 'let g:'.a:var.'=""'
+    endif
+
     echohl Search
     call inputsave()
-    exec 'let g:'.a:var.'=input(a:string)'
+    exec 'let g:'.a:var.'=input(a:string, g:'.a:var.')'
     call inputrestore()
     echohl None
     return ''
@@ -278,7 +318,7 @@ if !exists('g:CodeCompl_SaveListInBuffer')
 endif
 
 " }}}
-" Default complete file {{{2
+" User-defined complete file {{{2
 " this tell code_complete where to find the templete file.
 " it must be in &runtimepath, or a subfolder in it.
 " you can use UpdateTemplate to re-read this file.
@@ -287,7 +327,7 @@ if !exists("g:CodeCompl_Complete_File")
 endif
 
 " }}}
-" Default template folder {{{2
+" User-defined template folder {{{2
 " this tell code_complete where to find the template folder
 " a template folder is a folder, every file is a template for
 " special filetype, e.g. std.c is a template named 'std', and
@@ -297,6 +337,21 @@ endif
 " you can use UpdateTemplate to update it
 if !exists("g:CodeCompl_Template_Folder")
     let g:CodeCompl_Template_Folder = "templates"
+endif
+
+" }}}
+" Enable default complete file or not {{{2
+" set g:Code_Compl_Enable_Default_Snippets to non-zero to enable the
+" default snippets file, and set it to zero to disabled it.
+if !exists("g:CodeCompl_Enable_Default_Snippets")
+    let g:CodeCompl_Enable_Default_Snippets = 1
+endif
+
+" }}}
+" Default complete file name {{{2
+" define the default complete file's name.
+if !exists("g:CodeCompl_Default_Complete_File")
+    let g:CodeCompl_Default_Complete_File = "plugin/default_snippets.template"
 endif
 
 " }}}
@@ -406,6 +461,7 @@ function! s:GlobalTemplateUpdate()
 
     " search for template file list
     let flist = split(globpath(&rtp, g:CodeCompl_Template_Folder.'/*'), "\<NL>")
+
     for fname in flist
         let ft = fnamemodify(fname, ':t:e')
         let ft = empty(ft) ? 'COMMON' : ft
@@ -417,35 +473,51 @@ function! s:GlobalTemplateUpdate()
     endfor
 
     " call the template defined file
-    exec "runtime ".g:CodeCompl_Complete_File
-    redir => output
-    silent function /^Set_complete_type_.*$/
-    redir END
+    let flist = [g:CodeCompl_Complete_File]
 
-    let func_list = split(output, "\<NL>")
+    if g:CodeCompl_Enable_Default_Snippets
+        let flist += [g:CodeCompl_Default_Complete_File]
+    endif
 
-    for func in func_list
-        let func = matchstr(func, '^function \zsSet_complete_type_[^(]\+\ze')
-        let ft = matchstr(func, '^Set_complete_type_\zs.*\ze$')
-        if !has_key(s:complete_Snippets, ft)
-            let s:complete_Snippets[ft] = {}
+    for cfile in flist
+
+        exec "runtime ".cfile
+        redir => output
+        silent function /^Set_complete_type_.*$/
+        redir END
+
+        if empty(output)
+            continue
         endif
-        if !has_key(s:complete_FileList, ft)
-            let s:complete_FileList[ft] = {}
-        endif
-        
-        exec 'call '.func.'(s:complete_Snippets[ft], '.
-                    \ 's:complete_FileList[ft])'
-        exec 'delfunction '.func
+
+        let func_list = split(output, "\<NL>")
+
+        for func in func_list
+            let func = matchstr(func, '^function \zsSet_complete_type_[^(]\+\ze')
+            let ft = matchstr(func, '^Set_complete_type_\zs.*\ze$')
+            if !has_key(s:complete_Snippets, ft)
+                let s:complete_Snippets[ft] = {}
+            endif
+            if !has_key(s:complete_FileList, ft)
+                let s:complete_FileList[ft] = {}
+            endif
+
+            exec 'call '.func.'(s:complete_Snippets[ft], '.
+                        \ 's:complete_FileList[ft])'
+        endfor
+
+        for func in func_list
+            let func = matchstr(func, '^function \zsSet_complete_type_[^(]\+\ze')
+            exec 'delfunction '.func
+        endfor
+
     endfor
 
-    if !empty(&ft) && has_key(s:complete_FileList, &ft)
-        let b:complete_FileList = s:complete_FileList[&ft]
-    endif
+    let b:complete_FileList = get(s:complete_FileList, &ft,
+                \ s:complete_FileList['COMMON'])
+    let b:complete_Snippets = get(s:complete_Snippets, &ft, 
+                \ s:complete_Snippets['COMMON'])
 
-    if !empty(&ft) && has_key(s:complete_Snippets, &ft)
-        let b:complete_Snippets = s:complete_Snippets[&ft]
-    endif
 endfunction
 " }}}
 " Update buffer templates and completes {{{2
@@ -468,21 +540,36 @@ function! s:BufferTemplateUpdate()
     endfor
 
     " call the template defined file
-    exec "runtime ".g:CodeCompl_Complete_File
-    silent! call Set_complete_type_COMMON(b:complete_Snippets,
-                \  b:complete_FileList)
-    if !empty(&ft)
-        silent! call Set_complete_type_{&ft}(b:complete_Snippets,
-                    \ b:complete_FileList)
+    let flist = [g:CodeCompl_Complete_File]
+
+    if g:CodeCompl_Enable_Default_Snippets
+        let flist += [g:CodeCompl_Default_Complete_File]
     endif
 
-    " delete all function in complete file
-    redir => func_list
-    silent function /^Set_complete_type_.*$/
-    redir END
-    for func in split(func_list, "\<NL>")
-        exec 'delfunction '.matchstr(func,
-                    \ '^function \zsSet_complete_type_[^(]\+\ze')
+    for cfile in flist
+
+        exec "runtime ".cfile
+        if exists("*Set_complete_type_COMMON")
+            silent! call Set_complete_type_COMMON(b:complete_Snippets,
+                        \  b:complete_FileList)
+        endif
+        if !empty(&ft) && exists("*Set_complete_type_".&ft)
+            silent! call Set_complete_type_{&ft}(b:complete_Snippets,
+                        \ b:complete_FileList)
+        endif
+
+        " delete all function in complete file
+        redir => func_list
+        silent function /^Set_complete_type_.*$/
+        redir END
+
+        if !empty(func_list)
+            for func in split(func_list, "\<NL>")
+                exec 'delfunction '.matchstr(func,
+                            \ '^function \zsSet_complete_type_[^(]\+\ze')
+            endfor
+        endif
+
     endfor
 endfunction
 " }}}
@@ -515,7 +602,14 @@ function! s:TemplateComplete(cword)
 
     let s:jumppos = -1
     let line = line('.')
-    let tlist = readfile(fname)
+    let template = join(readfile(fname), "\<NL>")
+    let template = substitute(template, 
+                \ escape(g:CodeCompl_Template_RegionStart,'\').'\([^\n]\{-}\)'.
+                \ escape(g:CodeCompl_Template_RegionEnd,'\'), 
+                \ escape(g:CodeCompl_RegionStart,'&').'\1'.
+                \ escape(g:CodeCompl_RegionEnd,'&'),'g')
+
+    let tlist = split(template, "\<NL>")
     call setline(line, tlist[0])
     call append(line, tlist[1:])
     call cursor(line, 1)
@@ -694,4 +788,4 @@ let &cpo = s:keepcpo
 unlet! s:keepcpo
 
 " }}}
-" vim: ft=vim:ff=unix:fdm=marker:co=80:tw=70:sts=4:ts=4:sw=4:et:sta
+" vim: ft=vim:ff=unix:fdm=marker:tw=70:sts=4:ts=4:sw=4:et

@@ -140,9 +140,11 @@ function! Set_complete_type_vim(dict, ...)
 
     let a:dict['adict'] = "let a:dict['".s:dr."'] = ".s:dr
 
-    let a:dict['fh'] = '" '.repeat('=', 58)."\<cr>File Name:   ".
-                \ s:sr('File Name')."\<cr>Author:      ".s:sr('Author').
-                \ "\<cr>Version:     ".s:sr('Version')."\<cr>Last Change:  ".
+    let a:dict['lb'] = '" '.repeat('=', 58)."\<NL>"
+    let a:dict['le'] = repeat('=', 58)."\<NL>\<BS>\<BS>"
+    let a:dict['fh'] = '" '.repeat('=', 58)."\<cr>File Name:    ".
+                \ s:sr('File Name')."\<cr>Author:       ".s:sr('Author').
+                \ "\<cr>Version:      ".s:sr('Version')."\<cr>Last Change:  ".
                 \ "\<c-r>=strftime('%Y-%m-%d %H:%M:%S')\<cr>\<cr>".
                 \ repeat('=', 58)
 
