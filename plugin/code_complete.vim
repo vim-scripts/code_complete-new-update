@@ -779,7 +779,7 @@ if !g:CodeCompl_SaveListInBuffer
 endif
 
 " ensure the start function must be called when start vim
-StartCodeComplele
+"StartCodeComplele
 
 let &cpo = s:keepcpo
 unlet! s:keepcpo
