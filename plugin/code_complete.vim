@@ -7,7 +7,7 @@
 " Last Change:      2008-11-11 17:14:03
 " Version:          2.8.1
 " Details: {{{1
-" Install:          1.  Put code_complete.vim and my_snippets.template
+" Install:          1.  Put code_complete.vim and my_snippets.snip
 "                       to plugin directory.
 "                   2.  Use the command below to create tags file
 "                       including signature field.
@@ -25,7 +25,7 @@
 "                           foo ( <A-d>
 "                       becomes:
 "                           foo ( `<first param>`,`<second param>` )
-"                       press <A-D> after code template
+"                       press <A-D> after code snip
 "                           if <A-d>
 "                       becomes:
 "                           if( `<...>` )
@@ -46,7 +46,7 @@
 "                       UpdateTemplate
 "                           Update your filelist and template folder
 "                           and your complete file(named as
-"                           my_snippets.template defaultly), will
+"                           my_snippets.snip defaultly), will
 "                           called by code_complete when you edit new
 "                           buffer, or change your filetype if you set
 "                           g:CodeCompl_SaveListInBuffer
@@ -107,7 +107,7 @@
 "
 "                       g:CodeCompl_Complete_File
 "                           file name of users defined snippets.  now
-"                           it named 'my_snippets.template', use this
+"                           it named 'my_snippets.snip', use this
 "                           postfix to prevent Vim load it
 "                           automatically
 "
@@ -125,7 +125,7 @@
 "                           text' . g:CodeCompl_RegionEnd, but input a
 "                           little easily, but there are other helper
 "                           function and variables in your complete
-"                           file(defaults is my_snippets.template in
+"                           file(defaults is my_snippets.snip in
 "                           your plugin folder)
 "
 "                       GetFileName
@@ -147,7 +147,7 @@
 "
 "
 "                   default complete-words:
-"                           see "my_snippets.template" file.
+"                           see "my_snippets.snip" file.
 " }}}
 " ========================================================================
 " MUST after Vim 7.0 {{{1
@@ -323,7 +323,7 @@ endif
 " it must be in &runtimepath, or a subfolder in it.
 " you can use UpdateTemplate to re-read this file.
 if !exists("g:CodeCompl_Complete_File")
-    let g:CodeCompl_Complete_File = "plugin/my_snippets.template"
+    let g:CodeCompl_Complete_File = "plugin/my_snippets.snip"
 endif
 
 " }}}
@@ -351,7 +351,7 @@ endif
 " Default complete file name {{{2
 " define the default complete file's name.
 if !exists("g:CodeCompl_Default_Complete_File")
-    let g:CodeCompl_Default_Complete_File = "plugin/default_snippets.template"
+    let g:CodeCompl_Default_Complete_File = "plugin/default_snippets.snip"
 endif
 
 " }}}
@@ -432,10 +432,10 @@ function! <SID>TemplateFileSave(bang)
     let tdir = globpath(&rtp, g:CodeCompl_Template_Folder)
     let second_dir = stridx(tdir, "\<NL>")
     if second_dir != -1
-        let tdir = tdir[:second_file - 1]
+        let tdir = tdir[:second_dir - 1]
     endif
     let ft = empty(&ft) ? '' : '.'.&ft
-    exec 'write'.a:bang.' '.tdir.'/'.exoand('%:t:r').ft
+    exec 'write'.a:bang.' '.tdir.'/'.expand('%:t:r').ft
     let b:complete_FileList[expand('%:t:r')] = expand('%:p')
     if g:CodeCompl_SaveListInBuffer && empty(ft)
         let s:complete_FileList['COMMON'][expand('%:t:r')] = expand('%:p')
@@ -769,10 +769,7 @@ endfunction
 " define autocommands
 augroup code_complete
     au!
-
-    autocmd BufReadPost * StartCodeComplele
-    autocmd BufNewFile * StartCodeComplele
-    autocmd FileType * StartCodeComplele
+    autocmd BufReadPost,BufNewFile,FileType * StartCodeComplele
 augroup END
 
 
